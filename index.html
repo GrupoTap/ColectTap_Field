@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.13 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.14 — Levantamento NR-13 · Engetap</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -314,7 +314,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.13 · GAS v1.14</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.14 · GAS v1.14</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -1657,10 +1657,14 @@ function setToggle(id, val, el, cls) { markDirty(); debounceAutosave('toggle');
 
 function checkList(id, label, items) {
   const checks = items.map(item => {
-    const iid = id + '_' + item.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+    const slug  = typeof item === 'string'
+      ? item.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'')
+      : item.id;
+    const txt   = typeof item === 'string' ? item : item.label;
+    const iid   = id + '_' + slug;
     return `<div class="check-item" id="ci_${iid}" onclick="toggleCheck('${iid}')">
       <div class="check-box" id="cb_${iid}">✓</div>
-      <div class="check-label">${item}</div>
+      <div class="check-label">${txt}</div>
     </div>`;
   }).join('');
   return `<div class="field"><label>${label}</label><div class="check-list">${checks}</div></div>`;
@@ -1722,10 +1726,10 @@ function onCodigoProjetoChange(val) {
 function renderProjeto(t) {
   const fluidos = ['Vapor d\'água','Ar comprimido','Nitrogênio','GLP','GN (gás natural)','Amônia','CO2','Óleo hidráulico','Água','Outro'];
   const classesFluido = [
-    {v:'A',l:'Classe A — Tóxico/Letal ou Inflamável com PF < 37,8°C'},
-    {v:'B',l:'Classe B — Inflamável com PF ≥ 37,8°C'},
-    {v:'C',l:'Classe C — Combustível ou não inflamável/não tóxico'},
-    {v:'D',l:'Classe D — Vapor d\'água, água quente ≥ 45°C'},
+    {v:'A',l:'Classe A — Inflamável; combustível ≥ 200°C; tóxico ≤ 20 ppm; H₂ ou acetileno'},
+    {v:'B',l:'Classe B — Combustível < 200°C ou tóxico > 20 ppm'},
+    {v:'C',l:'Classe C — Vapor d\'água, gases asfixiantes simples ou ar comprimido'},
+    {v:'D',l:'Classe D — Outros fluidos não enquadrados nas classes anteriores'},
   ];
   const html = `
     <div class="field-row2">
@@ -2889,7 +2893,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.13  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
+    doc.text('ColectTap v2.14  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
 
     // ── Bloco de dados do cliente ──
     const bx=ML+10, bw=CW-20;
@@ -3581,8 +3585,8 @@ function normalizarFotosPDF(eq) {
 // ═══════════════════════════════════════════════════════════════
 function getCodigoProjetoSelect(t) {
   const mapas = {
-    vaso:      ['ASME BPVC Section VIII Div. 1','ASME BPVC Section VIII Div. 2','ASME BPVC Section VIII Div. 3','ASME BPVC Section X','Código não identificado','Outro'],
-    caldeira:  ['ASME BPVC Section I','ASME BPVC Section IV','ASME BPVC Section VIII, se aplicável','Código não identificado','Outro'],
+    vaso:      ['ASME Section VIII Div. 1','ASME Section VIII Div. 2','ASME Section VIII Div. 3','ASME Section X','Código não identificado','Outro'],
+    caldeira:  ['ASME Section I','ASME Section IV','ASME Section VIII, se aplicável','Código não identificado','Outro'],
     tubulacao: ['ASME B31.1','ASME B31.3','ASME B31.9','API 570','Código não identificado','Outro'],
     tanque:    ['API 650','API 653','ASME Section VIII, se pressurizado','Código não identificado','Outro'],
   };
