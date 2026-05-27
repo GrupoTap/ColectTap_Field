@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.6 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.12 — Levantamento NR-13 · Engetap</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -314,7 +314,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.6</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.12 · GAS v1.14</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -667,7 +667,7 @@ input[type=file]{display:none}
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.10';
+const APP_VERSION = '2.12';
 
 function esc(v) {
   return String(v == null ? '' : v)
@@ -1796,7 +1796,20 @@ function renderDimensoes(t) {
     ${campo('material', 'Material', 'select', {options: ['Aço carbono','Aço inox 304','Aço inox 316','Fibra de vidro (GRP)','Outro']})}
     ${campo('revestimento', 'Revestimento / Pintura', 'select', {options: ['Epóxi interno','Borracha (borrachamento)','Sem revestimento','Deteriorado','Outro']})}`;
   if (!html) html = '<div class="info-box">Nenhuma dimensão específica para este tipo.</div>';
-  const fotosSecao = getFotosSecao('dimensoes', t);
+  const modoDimFoto = SES.dados.modo_medicao_diametro || '';
+  let fotosSecao;
+  if (t === 'vaso' && modoDimFoto === 'Não medido') {
+    // Sem medição direta: pedir apenas foto do corpo e conexões (sem foto de trena)
+    fotosSecao = [
+      { key:'foto_corpo',    defaultLabel: LEGENDAS_TECNICAS['foto_corpo']    || 'Foto do Corpo do Equipamento' },
+      { key:'foto_conexoes', defaultLabel: LEGENDAS_TECNICAS['foto_conexoes'] || 'Foto das Conexões e Bocais' },
+    ];
+  } else if (t === 'vaso' && (modoDimFoto === 'Diâmetro externo medido' || modoDimFoto === 'Circunferência medida')) {
+    // Medição direta: incluir foto da medição
+    fotosSecao = getFotosSecao('dimensoes', t);
+  } else {
+    fotosSecao = getFotosSecao('dimensoes', t);
+  }
   return html + '<p class="sec-label">📷 Fotos desta Seção</p>' + fotosSecao.map(d => renderFotoBlock(d, 'dimensoes')).join('');
 }
 
@@ -1906,6 +1919,7 @@ function renderDocumentacaoInteligente(t) {
       ${campo('responsavel_envio_docs', 'Responsável pelo envio de documentos', 'text', {placeholder: 'Nome e contato'})}
       ${campo('prazo_envio_docs', 'Prazo para envio', 'date', {})}
       <p class="sec-label">📷 Fotos / Documentos desta Seção</p>
+      <div class="info-box" style="font-size:12px">Registre apenas documentos. Fotos de equipamento e placa são coletadas na seção de Campo.</div>
       ${getFotosSecao('docs', t).map(d => renderFotoBlock(d, 'docs')).join('')}`;
   } else if (aguardando) {
     html += `
@@ -1943,14 +1957,23 @@ function renderServico(t) {
 function renderEnquadramento(t) {
   const enquadra = SES.dados.enquadra_nr13 || '';
 
-  const motivosEnq = [
-    'PMTA > 0,8 kgf/cm²',
-    'Produto perigoso/classe A/B',
-    'Volume acima do limite normativo',
-    'Fluido sob pressão em regime contínuo',
-    'Equipamento listado no inventário NR13',
-    'Processo crítico com risco potencial'
-  ];
+  const MOTIVOS_ENQ = {
+    vaso: [
+      '(b) P.V > 8, onde P = pressão máx. operação em kPa e V = volume interno em m³',
+      '(c) Fluido classe A, independentemente do produto P.V',
+      '(d) Recipiente móvel com P.V > 8 (kPa·m³) ou com fluido classe A',
+    ],
+    caldeira: [
+      '(a) Pressão de operação superior a 60 kPa (0,61 kgf/cm²)',
+    ],
+    tubulacao: [
+      '(e) Tubulação com fluido classe A ou B, ligada a caldeira ou vaso abrangido pela NR-13',
+    ],
+    tanque: [
+      '(f) Tanque metálico: diâmetro externo > 3 m, capacidade > 20.000 L, fluido classe A ou B\n    ⚠️ Vigência: 04/07/2026 (Portaria MTP nº 1.846/2022)',
+    ],
+  };
+  const motivosEnq = MOTIVOS_ENQ[t] || MOTIVOS_ENQ.vaso;
 
   const motivosNaoEnq = [
     'Recipiente transportável, vaso destinado ao transporte, reservatório portátil ou extintor de incêndio',
@@ -1994,7 +2017,8 @@ function renderEnquadramento(t) {
 
   if (enquadra === 'Sim, enquadra conforme 13.2.1') {
     html += `
-      ${checkList('enq_motivo', 'Motivos de enquadramento (NR13)', motivosEnq)}
+      ${checkList('enq_motivo', 'Motivos de enquadramento — NR-13 item 13.2.1', motivosEnq)}
+${t === 'vaso' ? `<div class="info-box" style="font-size:12px">⚠️ Exclusão automática: vasos com diâmetro interno &lt; 150 mm não se enquadram na NR-13 (item 13.2.2 alínea "f"), independente da classe do fluido.</div>` : ''}
       ${campo('situacao_nr13', 'Situação NR13', 'select', {options: ['Em dia','Vencida','Nunca inspecionada','Sem documentação','Fora do escopo NR13','A classificar']})}
       ${campo('base_enquadramento', 'Base de enquadramento', 'textarea', {placeholder: 'Fundamente com base normativa e evidências de campo.'})}
       ${campo('observacao_enquadramento', 'Observações de enquadramento', 'textarea', {placeholder: 'Complementos, restrições e recomendações.'})}`;
@@ -2023,7 +2047,7 @@ function renderEnquadramento(t) {
 function getFotosSecao(secaoId, tipo) {
   const mapa = {
     ident:    ['foto_placa','foto_tag','foto_geral_equip'],
-    projeto:  ['foto_folha_dados','foto_trecho_pmta'],
+    projeto:  ['foto_folha_dados_pmta'],
     dimensoes:['foto_medicao','foto_corpo','foto_conexoes'],
     disp:     ['foto_psv','foto_manometro','foto_cert_psv','foto_cert_man'],
     docs:     ['foto_prontuario','foto_registro_seg','foto_rel_anterior','foto_cert_psv_doc'],
@@ -2857,7 +2881,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.6  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
+    doc.text('ColectTap v2.12  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
 
     // ── Bloco de dados do cliente ──
     const bx=ML+10, bw=CW-20;
@@ -3487,6 +3511,7 @@ const LEGENDAS_TECNICAS = {
   foto_cert_man:    'Foto do Certificado de Calibração do Manômetro',
   foto_cert_psv_doc:'Foto do Certificado de Calibração da PSV',
   foto_prontuario:  'Foto do Prontuário / Folha de Dados',
+  foto_folha_dados_pmta: 'Foto da Folha de Dados (PMTA, volume, material)',
   foto_registro_seg:'Foto do Registro de Segurança',
   foto_rel_anterior:'Foto do Relatório de Inspeção Anterior',
   foto_folha_dados: 'Foto do Prontuário / Folha de Dados',
