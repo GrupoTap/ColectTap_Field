@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.12 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.13 — Levantamento NR-13 · Engetap</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -314,7 +314,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.12 · GAS v1.14</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.13 · GAS v1.14</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -1678,8 +1678,8 @@ function toggleCheck(id) { markDirty(); debounceAutosave('check');
 // ── SEÇÃO A: IDENTIFICAÇÃO ──
 function renderIdentificacao(t) {
   const tipoNR = {
-    vaso:    [{v:'I',l:'Categoria I'},{v:'II',l:'Categoria II'},{v:'III',l:'Categoria III'},{v:'IV',l:'Categoria IV'},{v:'V',l:'Categoria V (Isento)'}],
-    caldeira:[{v:'A',l:'Categoria A'},{v:'B',l:'Categoria B'},{v:'C',l:'Categoria C'}],
+    vaso:    [{v:'I',l:'Categoria I'},{v:'II',l:'Categoria II'},{v:'III',l:'Categoria III'},{v:'IV',l:'Categoria IV'},{v:'V',l:'Categoria V'}],
+    caldeira:[{v:'A',l:'Categoria A'},{v:'B',l:'Categoria B'}],
     tubulacao:[{v:'I',l:'Classe I'},{v:'II',l:'Classe II'},{v:'III',l:'Classe III'}],
     tanque:  [{v:'I',l:'Categoria I'},{v:'II',l:'Categoria II'},{v:'III',l:'Categoria III'}],
   }[t] || [];
@@ -1722,10 +1722,10 @@ function onCodigoProjetoChange(val) {
 function renderProjeto(t) {
   const fluidos = ['Vapor d\'água','Ar comprimido','Nitrogênio','GLP','GN (gás natural)','Amônia','CO2','Óleo hidráulico','Água','Outro'];
   const classesFluido = [
-    {v:'A',l:'Classe A — Inflamável/Tóxico/Letal'},
-    {v:'B',l:'Classe B — Inflamável'},
-    {v:'C',l:'Classe C — Não inflamável / Não tóxico'},
-    {v:'D',l:'Classe D — Vapor d\'água / Água quente'},
+    {v:'A',l:'Classe A — Tóxico/Letal ou Inflamável com PF < 37,8°C'},
+    {v:'B',l:'Classe B — Inflamável com PF ≥ 37,8°C'},
+    {v:'C',l:'Classe C — Combustível ou não inflamável/não tóxico'},
+    {v:'D',l:'Classe D — Vapor d\'água, água quente ≥ 45°C'},
   ];
   const html = `
     <div class="field-row2">
@@ -1833,10 +1833,14 @@ function renderDispositivos(t) {
     ${toggle('possui_manometro', 'Possui manômetro?', ['Sim','Não','N/A'])}`;
 
   if (temMan === 'Sim') {
-    html += `
-      ${toggle('manometro_calibrado', 'Manômetro calibrado?', ['Sim','Não','N/A'])}
-      ${campo('cert_manometro', 'Nº Certificado de Calibração (Manômetro)', 'text', {placeholder: 'CAL-2026-001'})}
-      ${campo('venc_manometro', 'Vencimento da Calibração', 'date', {})}`;
+    const manCalib = SES.dados.manometro_calibrado || '';
+    html += toggle('manometro_calibrado', 'Manômetro calibrado?', ['Sim','Não','N/A']);
+    if (manCalib === 'Sim') {
+      html += campo('cert_manometro', 'Nº Certificado de Calibração (Manômetro)', 'text', {placeholder: 'CAL-2026-001'});
+      html += campo('venc_manometro', 'Vencimento da Calibração', 'date', {});
+    } else if (manCalib === 'Não') {
+      html += campo('motivo_nao_calibracao_man', 'Motivo da não calibração (Manômetro)', 'textarea', {placeholder: 'Ex: sem acesso ao certificado, calibração vencida, equipamento antigo…'});
+    }
   } else if (temMan === 'Não' || temMan === 'N/A') {
     html += campo('obs_manometro', 'Observação sobre manômetro', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade.'});
   }
@@ -1845,12 +1849,16 @@ function renderDispositivos(t) {
     ${toggle('possui_valvula', 'Possui válvula de segurança?', ['Sim','Não','N/A'])}`;
 
   if (temPSV === 'Sim') {
-    html += `
-      ${campo('pa_valvula', 'Pressão de Abertura da PSV (kgf/cm²)', 'number', {placeholder: 'Ex: 11'})}
-      ${toggle('valvula_calibrada', 'PSV calibrada?', ['Sim','Não','N/A'])}
-      ${campo('cert_valvula', 'Nº Certificado de Calibração (PSV)', 'text', {placeholder: 'CAL-2026-002'})}
-      ${campo('venc_valvula', 'Vencimento da Calibração', 'date', {})}
-      ${toggle('valvula_adequada', 'A PSV é adequada ao equipamento?', ['Sim','Não','Não foi possível avaliar'])}`;
+    const psvCalib = SES.dados.valvula_calibrada || '';
+    html += campo('pa_valvula', 'Pressão de Abertura da PSV (kgf/cm²)', 'number', {placeholder: 'Ex: 11'});
+    html += toggle('valvula_calibrada', 'PSV calibrada?', ['Sim','Não','N/A']);
+    if (psvCalib === 'Sim') {
+      html += campo('cert_valvula', 'Nº Certificado de Calibração (PSV)', 'text', {placeholder: 'CAL-2026-002'});
+      html += campo('venc_valvula', 'Vencimento da Calibração', 'date', {});
+    } else if (psvCalib === 'Não') {
+      html += campo('motivo_nao_calibracao_psv', 'Motivo da não calibração (PSV)', 'textarea', {placeholder: 'Ex: PSV sem certificado disponível, substituição pendente…'});
+    }
+    html += toggle('valvula_adequada', 'A PSV é adequada ao equipamento?', ['Sim','Não','Não foi possível avaliar']);
 
     if (psvAdq === 'Não') {
       html += campo('motivo_valvula_inadequada', 'Motivo da inadequação', 'textarea', {placeholder: 'Descreva por que a PSV não é adequada.'});
@@ -2881,7 +2889,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.12  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
+    doc.text('ColectTap v2.13  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
 
     // ── Bloco de dados do cliente ──
     const bx=ML+10, bw=CW-20;
