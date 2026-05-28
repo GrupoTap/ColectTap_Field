@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.14 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.15 — Levantamento NR-13 · Engetap</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -667,7 +667,7 @@ input[type=file]{display:none}
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.12';
+const APP_VERSION = '2.15';
 
 function esc(v) {
   return String(v == null ? '' : v)
@@ -1264,6 +1264,29 @@ function editarEquip(idx) {
   }
   SES.tipoEquip = SES.dados.tipo;
   SES.fotos = SES.dados._fotos || {};
+  // Enriquecer fotos com driveUrl salvo em fotos_json (se disponível)
+  if (eq.fotos_json) {
+    try {
+      const parsed = JSON.parse(eq.fotos_json);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(f => {
+          if (f.key && SES.fotos[f.key]) {
+            SES.fotos[f.key].driveUrl = f.file_url || SES.fotos[f.key].driveUrl || null;
+            SES.fotos[f.key].fileId   = f.file_id  || SES.fotos[f.key].fileId  || null;
+          } else if (f.key && !SES.fotos[f.key]) {
+            SES.fotos[f.key] = {
+              key: f.key,
+              label: f.label || LEGENDAS_TECNICAS[f.key] || f.key,
+              driveUrl: f.file_url || null,
+              fileId:   f.file_id  || null,
+              _hasData: false,
+              thumbUrl: null,
+            };
+          }
+        });
+      }
+    } catch(e) {}
+  }
   SES.pendencias = eq._pendencias || [];
   SES.secAtual = 0;
   renderT5();
@@ -1677,6 +1700,9 @@ function toggleCheck(id) { markDirty(); debounceAutosave('check');
   const checked = ci.classList.toggle('checked');
   if (!SES.dados._checks) SES.dados._checks = {};
   SES.dados._checks[id] = checked;
+  if (!SES.dados._checkLabels) SES.dados._checkLabels = {};
+  const labelEl = ci.querySelector('.check-label');
+  if (labelEl) SES.dados._checkLabels[id] = labelEl.textContent.trim();
 }
 
 // ── SEÇÃO A: IDENTIFICAÇÃO ──
@@ -1744,7 +1770,11 @@ function renderProjeto(t) {
       ${campo('ano_ultima_inspecao', 'Ano da Última Inspeção', 'number', {placeholder: 'Ex: 2022'})}
       ${campo('tipo_ultima_inspecao', 'Tipo da Últ. Inspeção', 'select', {options: ['Interna','Externa','Interna + Externa','Não inspecionado']})}
     </div>
-    ${toggle('ja_inspecionado', 'Já foi inspecionado anteriormente?')}`;
+    <p class="sec-label">Condições de Operação</p>
+${campo('temperatura', 'Temperatura Média de Operação (°C)', 'number', {placeholder: 'Ex: 80 (deixe vazio se desconhecida)'})}
+${t !== 'tubulacao' ? toggle('possui_isolamento', 'Possui isolamento térmico?', ['Sim','Não','N/A']) : ''}
+${SES.dados.possui_isolamento === 'Sim' ? renderFotoBlock('foto_isolamento', 'projeto') : ''}
+${toggle('ja_inspecionado', 'Já foi inspecionado anteriormente?')}`;
   const fotosSecao = getFotosSecao('projeto', t);
   return html + '<p class="sec-label">📷 Fotos desta Seção</p>' + fotosSecao.map(d => renderFotoBlock(d, 'projeto')).join('');
 }
@@ -1881,8 +1911,16 @@ function renderDispositivos(t) {
     ${t === 'caldeira' ? toggle('possui_pressostato', 'Possui pressostato de segurança?', ['Sim','Não']) : ''}`;
 
   const fotosDisp = [];
-  if (temMan === 'Sim') { fotosDisp.push('foto_manometro', 'foto_cert_man'); }
-  if (temPSV === 'Sim') { fotosDisp.push('foto_psv', 'foto_cert_psv'); }
+  if (temMan === 'Sim') {
+    fotosDisp.push('foto_manometro');
+    const manCalib = SES.dados.manometro_calibrado || '';
+    if (manCalib === 'Sim') fotosDisp.push('foto_cert_man');
+  }
+  if (temPSV === 'Sim') {
+    fotosDisp.push('foto_psv');
+    const psvCalib = SES.dados.valvula_calibrada || '';
+    if (psvCalib === 'Sim') fotosDisp.push('foto_cert_psv');
+  }
   const fotosDefs = fotosDisp.length > 0
     ? fotosDisp.map(k => ({ key: k, defaultLabel: LEGENDAS_TECNICAS[k] || k }))
     : getFotosSecao('disp', t);
@@ -1893,7 +1931,7 @@ function renderDispositivos(t) {
 // ── SEÇÃO E: DOCUMENTAÇÃO ──
 function renderDocumentacaoInteligente(t) {
   const docsTipo = {
-    vaso:      ['Prontuário do vaso (fabricante)','Registro de segurança','Relatórios de inspeção anteriores','Projeto de Alteração e Reparo (PAR)','Certificado de calibração PSV','Certificado de calibração manômetro','Projeto de instalação'],
+    vaso:      ['Prontuário do vaso (fabricante)','Prontuário do vaso (reconstituído)','Registro de segurança','Relatórios de inspeção anteriores','Projeto de Alteração e Reparo (PAR)','Certificado de calibração PSV','Certificado de calibração manômetro','Projeto de instalação'],
     caldeira:  ['Prontuário da caldeira (fabricante)','Registro de segurança','Relatórios de inspeção anteriores','Projeto de Alteração e Reparo (PAR)','Certificado de calibração PSV','Certificado de calibração manômetro','Projeto de instalação','Licença de operação'],
     tubulacao: ['Folhas de dados / isométrico','Registro de segurança','Relatórios de inspeção anteriores','Projeto de Alteração e Reparo (PAR)','Certificado de testes'],
     tanque:    ['Folhas de dados','Registro de segurança','Relatórios de inspeção anteriores','Projeto de Alteração e Reparo (PAR)','Certificados de inspeção e testes'],
