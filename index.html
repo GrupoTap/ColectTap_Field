@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.15 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.16 — Levantamento NR-13 · Engetap</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -314,7 +314,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.14 · GAS v1.14</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.16 · GAS v1.17</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -667,7 +667,7 @@ input[type=file]{display:none}
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.15';
+const APP_VERSION = '2.16';
 
 function esc(v) {
   return String(v == null ? '' : v)
@@ -1728,6 +1728,7 @@ function renderIdentificacao(t) {
       ${campo('codigo_projeto', 'Código de Projeto', 'select', {options: codigoOpts, extra: `onchange="onCodigoProjetoChange(this.value)"`})}
     </div>
     ${mostrarOutro ? campo('codigo_projeto_outro', 'Código de Projeto (especificar)', 'text', {placeholder: 'Ex: NR-12, EN 13445…'}) : ''}
+    ${campo('ano_edicao_codigo_projeto', 'Ano de Edição do Código', 'number', {placeholder: 'Ex: 2019'})}
     ${campo('localizacao', 'Localização na Planta', 'text', {placeholder: 'Sala de compressores, área 3…'})}
     ${toggle('placa_indelevel', 'Possui placa de identificação indelével?')}
     ${toggle('necessita_tag', 'Necessita identificação de TAG/Categoria?')}
@@ -1773,7 +1774,7 @@ function renderProjeto(t) {
     <p class="sec-label">Condições de Operação</p>
 ${campo('temperatura', 'Temperatura Média de Operação (°C)', 'number', {placeholder: 'Ex: 80 (deixe vazio se desconhecida)'})}
 ${t !== 'tubulacao' ? toggle('possui_isolamento', 'Possui isolamento térmico?', ['Sim','Não','N/A']) : ''}
-${SES.dados.possui_isolamento === 'Sim' ? renderFotoBlock('foto_isolamento', 'projeto') : ''}
+${SES.dados.possui_isolamento === 'Sim' ? renderFotoBlock({key:'foto_isolamento', defaultLabel:'Foto do Isolamento Térmico'}, 'projeto') : ''}
 ${toggle('ja_inspecionado', 'Já foi inspecionado anteriormente?')}`;
   const fotosSecao = getFotosSecao('projeto', t);
   return html + '<p class="sec-label">📷 Fotos desta Seção</p>' + fotosSecao.map(d => renderFotoBlock(d, 'projeto')).join('');
@@ -1907,7 +1908,7 @@ function renderDispositivos(t) {
     ${toggle('possui_purgador', 'Possui purgador?', ['Sim','Não','N/A'])}
     ${toggle('possui_dcbi', 'Possui DCBI?', ['Sim','Não','N/A'])}
     ${toggle('possui_valvula_retencao', 'Possui válvula de retenção?', ['Sim','Não','N/A'])}
-    ${t === 'caldeira' ? toggle('possui_indicador_nivel', 'Possui indicador de nível?', ['Sim','Não']) : ''}
+    ${(t === 'caldeira' || t === 'tanque') ? toggle('possui_indicador_nivel', 'Possui Indicador de Nível?', ['Sim','Não']) : ''}
     ${t === 'caldeira' ? toggle('possui_pressostato', 'Possui pressostato de segurança?', ['Sim','Não']) : ''}`;
 
   const fotosDisp = [];
@@ -2367,12 +2368,12 @@ function renderT6() {
         ${rv('Manômetro', d.possui_manometro)}
         ${rv('Manômetro calibrado', d.manometro_calibrado)}
         ${rv('PSV', d.possui_valvula)}
-        ${rv('PSV calibrada', d.valvula_calibrada)}
+        ${rv('PSV Calibrada?', d.valvula_calibrada)}
         ${rv('Purgador', d.possui_purgador)}
         ${rv('DCBI', d.possui_dcbi)}
         ${rv('Documentos presentes', checkedDocs || '—')}
-        ${rv('Trabalho em altura', d.trabalho_altura)}
-        ${rv('Necessita TH', d.necessita_th)}
+        ${rv('Requer Trabalho em Altura?', d.trabalho_altura)}
+        ${rv('Necessita Teste Hidrostático?', d.necessita_th)}
         ${rv('Observações', d.obs_gerais)}
       </div>
       ${fotos_html ? '<p class="sec-label">Fotos</p><div style="display:flex;flex-wrap:wrap;gap:4px">' + fotos_html + '</div>' : ''}`;
@@ -2710,6 +2711,16 @@ async function gerarPDFEquips(indices, completo) {
 
   let pageNum = 0; // será incrementado na primeira página real
   const agora = new Date();
+  function fmtData(v) {
+    if (!v) return '—';
+    // YYYY-MM-DD → DD/MM/AAAA
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return m[3] + '/' + m[2] + '/' + m[1];
+    // já em DD/MM/AAAA
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(String(v))) return v;
+    return String(v);
+  }
+
   const dataHoje = agora.toLocaleDateString('pt-BR');
   const horaHoje = agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 
@@ -2839,36 +2850,41 @@ async function gerarPDFEquips(indices, completo) {
   }
 
   function row1(y, label, val, alt) {
-    const rh=6.5;
-    y=ck(y,rh);
-    if (alt){doc.setFillColor(247,250,255);doc.rect(ML,y,CW,rh,'F');}
-    doc.setDrawColor(...MGRAY);doc.setLineWidth(0.2);
-    doc.rect(ML,y,CW,rh,'S');
-    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...AZUL2);
-    doc.text(limparTxtPDF(label),ML+2,y+4.5);
-    doc.setFont('helvetica','normal');doc.setTextColor(...DARK);
-    const v=val&&val!=='—'?String(val):'—';
-    doc.text(limparTxtPDF(v),ML+58,y+4.5);
-    return y+rh;
+    const rh = 8;
+    y = ck(y, rh);
+    if (alt) { doc.setFillColor(247, 250, 255); doc.rect(ML, y, CW, rh, 'F'); }
+    doc.setDrawColor(...MGRAY); doc.setLineWidth(0.2);
+    doc.rect(ML, y, CW, rh, 'S');
+    // Label bold pequeno
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...AZUL2);
+    doc.text(limparTxtPDF(label), ML + 2, y + 3);
+    // Valor normal, alinhado à esquerda abaixo do label
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...DARK);
+    const v = (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+    doc.text(limparTxtPDF(v), ML + 2, y + 6.5);
+    return y + rh;
   }
 
   function row2(y, items) {
-    const rh=6.5;
-    y=ck(y,rh);
-    const cw2=CW/2;
-    items.forEach((item,i)=>{
-      const x=ML+i*cw2;
-      doc.setFillColor(i%2===0?247:252,250,255);
-      doc.rect(x,y,cw2,rh,'F');
-      doc.setDrawColor(...MGRAY);doc.setLineWidth(0.2);
-      doc.rect(x,y,cw2,rh,'S');
-      doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...AZUL2);
-      doc.text(limparTxtPDF(item.l||''),x+2,y+4.5);
-      doc.setFont('helvetica','normal');doc.setTextColor(...DARK);
-      const v=(item.v&&item.v!=='—')?String(item.v):'—';
-      doc.text(limparTxtPDF(v),x+cw2*0.45,y+4.5);
+    const rh = 8;
+    y = ck(y, rh);
+    const cw2 = CW / 2;
+    items.forEach((item, i) => {
+      const x = ML + i * cw2;
+      doc.setFillColor(i % 2 === 0 ? 247 : 252, 250, 255);
+      doc.rect(x, y, cw2, rh, 'F');
+      doc.setDrawColor(...MGRAY); doc.setLineWidth(0.2);
+      doc.rect(x, y, cw2, rh, 'S');
+      // Label — bold, pequeno, azul, linha superior
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...AZUL2);
+      doc.text(limparTxtPDF(item.l || ''), x + 2, y + 3);
+      // Valor — normal, maior, escuro, linha inferior, alinhado à esquerda
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...DARK);
+      const v = (item.v !== undefined && item.v !== null && item.v !== '' && item.v !== '—')
+        ? String(item.v) : '—';
+      doc.text(limparTxtPDF(v), x + 2, y + 6.5);
     });
-    return y+rh;
+    return y + rh;
   }
 
   function badge(y, label, ok) {
@@ -2920,47 +2936,65 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','bold');
     doc.setFontSize(20);
     doc.setTextColor(...WHITE);
-    doc.text('LEVANTAMENTO DE', PW/2, 105, {align:'center'});
-    doc.text('EQUIPAMENTOS NR-13', PW/2, 116, {align:'center'});
+    doc.text('LEVANTAMENTO DE', PW/2, 68, {align:'center'});
+    doc.text('EQUIPAMENTOS NR-13', PW/2, 79, {align:'center'});
     // Linha decorativa
     doc.setDrawColor(...CIANO);
     doc.setLineWidth(1.2);
-    doc.line(ML+20, 122, PW-MR-20, 122);
+    doc.line(ML+20, 83, PW-MR-20, 83);
 
     // Subtítulo ColectTap
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.14  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 130, {align:'center'});
+    doc.text('ColectTap v2.16  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
+
+    // ── Foto da capa (se disponível) ──
+    if (eq && eq.foto_capa_key && eq._fotos) {
+      const fotoCapa = eq._fotos[eq.foto_capa_key];
+      if (fotoCapa && fotoCapa.dataUrl) {
+        const fotoAreaX = ML;
+        const fotoAreaY = 88;
+        const fotoAreaW = CW;
+        const fotoAreaH = 48;
+        const r = (fotoCapa.w && fotoCapa.h) ? (fotoCapa.w / fotoCapa.h) : (4 / 3);
+        let fw = fotoAreaW, fh = fotoAreaW / r;
+        if (fh > fotoAreaH) { fh = fotoAreaH; fw = fotoAreaH * r; }
+        if (fw > fotoAreaW) { fw = fotoAreaW; fh = fotoAreaW / r; }
+        const fx = fotoAreaX + (fotoAreaW - fw) / 2;
+        const fy = fotoAreaY + (fotoAreaH - fh) / 2;
+        try { doc.addImage(fotoCapa.dataUrl, 'JPEG', fx, fy, fw, fh); } catch(_) {}
+      }
+    }
 
     // ── Bloco de dados do cliente ──
     const bx=ML+10, bw=CW-20;
     doc.setFillColor(20, 45, 90);
-    doc.roundedRect(bx, 140, bw, 30, 3, 3, 'F');
+    doc.roundedRect(bx, 145, bw, 30, 3, 3, 'F');
     doc.setDrawColor(...CIANO);
     doc.setLineWidth(0.8);
-    doc.roundedRect(bx, 140, bw, 30, 3, 3, 'S');
+    doc.roundedRect(bx, 145, bw, 30, 3, 3, 'S');
     doc.setFont('helvetica','bold');
     doc.setFontSize(7);
     doc.setTextColor(...CIANO);
-    doc.text('DADOS DA ORDEM DE SERVICO', bx+6, 148);
+    doc.text('DADOS DA ORDEM DE SERVICO', bx+6, 153);
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(...WHITE);
     const cliente = SES.os ? SES.os.cliente : '—';
     const osNum   = SES.os ? SES.os.numero_os : '—';
     doc.setFont('helvetica','bold');
-    doc.text(limparTxtPDF('Cliente: '), bx+6, 156);
+    doc.text(limparTxtPDF('Cliente: '), bx+6, 161);
     doc.setFont('helvetica','normal');
-    doc.text(limparTxtPDF(cliente), bx+28, 156);
+    doc.text(limparTxtPDF(cliente), bx+28, 161);
     doc.setFont('helvetica','bold');
-    doc.text(limparTxtPDF('OS: '), bx+6, 163);
+    doc.text(limparTxtPDF('OS: '), bx+6, 168);
     doc.setFont('helvetica','normal');
-    doc.text(limparTxtPDF(osNum), bx+17, 163);
+    doc.text(limparTxtPDF(osNum), bx+17, 168);
     doc.setFont('helvetica','bold');
-    doc.text(limparTxtPDF('Data: '), bx+80, 163);
+    doc.text(limparTxtPDF('Data: '), bx+80, 168);
     doc.setFont('helvetica','normal');
-    doc.text(dataHoje, bx+96, 163);
+    doc.text(dataHoje, bx+96, 168);
 
     // ── Dados do equipamento (se individual) ──
     if (eq) {
@@ -3141,12 +3175,7 @@ async function gerarPDFEquips(indices, completo) {
       y = row1(y,'Status', enquadraVal, false);
       if (d.situacao_nr13) y = row1(y,'Situação NR-13', d.situacao_nr13, true);
       if (d.base_enquadramento) {
-        y=ck(y,8);
-        doc.setFillColor(...LGRAY); doc.rect(ML,y,CW,7,'F');
-        doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor(80,90,110);
-        const l=doc.splitTextToSize(limparTxtPDF('Base: '+d.base_enquadramento), CW-4);
-        doc.text(l, ML+2, y+4.5);
-        y += Math.max(7, l.length*4+2);
+        y = row1(y, 'Base de Enquadramento NR-13', d.base_enquadramento, true);
       }
       y += 2;
     }
@@ -3156,19 +3185,23 @@ async function gerarPDFEquips(indices, completo) {
     // A — IDENTIFICAÇÃO
     y = secTit(y,'A','Identificação');
     y = row2(y,[{l:'TAG',v:d.tag},{l:'Fabricante',v:d.fabricante}]);
-    y = row2(y,[{l:'N° Equipamento',v:d.numero_equip},{l:'Ano de Fabricação',v:d.ano_fabricacao}]);
-    y = row2(y,[{l:'Categoria NR-13',v:d.categoria},{l:'Código de Projeto',v:d.codigo_projeto==='Outro'?(d.codigo_projeto_outro||'Outro'):d.codigo_projeto}]);
+    y = row2(y,[{l:'Número do Equipamento',v:d.numero_equip},{l:'Ano de Fabricação',v:d.ano_fabricacao}]);
+    const codigoProjetoDisplay = (d.codigo_projeto === 'Outro'
+      ? (d.codigo_projeto_outro || 'Outro')
+      : (d.codigo_projeto || '—')) +
+      (d.ano_edicao_codigo_projeto ? ' (' + d.ano_edicao_codigo_projeto + ')' : '');
+    y = row2(y,[{l:'Categoria NR-13',v:d.categoria},{l:'Código de Projeto',v:codigoProjetoDisplay}]);
     y = row1(y,'Localização na Planta',d.localizacao,false);
-    y = row2(y,[{l:'Placa Indelevel',v:d.placa_indelevel},{l:'Necessita Ident.TAG/Cat.',v:d.necessita_tag}]);
+    y = row2(y,[{l:'Possui Placa Indelével?',v:d.placa_indelevel},{l:'Necessita Identificação TAG/Categoria?',v:d.necessita_tag}]);
     y+=2;
 
     // B — PROJETO
     y = secTit(y,'B','Dados de Projeto');
-    y = row2(y,[{l:'PMTA (kgf/cm²)',v:d.pmta},{l:'Pressão de Trabalho (kgf/cm²)',v:d.pressao_trabalho}]);
+    y = row2(y,[{l:'PMTA — Pressão Máx. de Trabalho Admissível (kgf/cm²)',v:d.pmta},{l:'Pressão de Trabalho (kgf/cm²)',v:d.pressao_trabalho}]);
     y = row1(y,'Pressão de Teste Hidrostático (kgf/cm²)', d.pressao_teste, false);
     y = row1(y,'Fluido de Trabalho', d.fluido==='Outro' ? d.fluido_outro : d.fluido, false);
-    y = row2(y,[{l:'Classe do Fluido',v:d.classe_fluido},{l:'Já Inspecionado',v:d.ja_inspecionado}]);
-    y = row2(y,[{l:'Ano Última Inspeção',v:d.ano_ultima_inspecao},{l:'Tipo Última Inspeção',v:d.tipo_ultima_inspecao}]);
+    y = row2(y,[{l:'Classe do Fluido',v:d.classe_fluido},{l:'Já Foi Inspecionado Anteriormente?',v:d.ja_inspecionado}]);
+    y = row2(y,[{l:'Ano da Última Inspeção',v:d.ano_ultima_inspecao},{l:'Tipo da Última Inspeção',v:d.tipo_ultima_inspecao}]);
     y+=2;
 
     // C — DIMENSÕES
@@ -3177,37 +3210,42 @@ async function gerarPDFEquips(indices, completo) {
       const diam = d.diametro_externo_mm || d.diametro_externo_calculado_mm || d.diametro || '—';
       const modoDiam = d.modo_medicao_diametro || '—';
       y = row2(y,[{l:'Modo de medição do diâmetro',v:modoDiam},{l:'Diâmetro Externo (mm)',v:diam}]);
-      if (d.circunferencia_mm) y = row2(y,[{l:'Circunferência medida (mm)',v:d.circunferencia_mm},{l:'Diâmetro calc. C/pi (mm)',v:d.diametro_externo_calculado_mm||'—'}]);
+      if (d.circunferencia_mm) y = row2(y,[{l:'Circunferência medida (mm)',v:d.circunferencia_mm},{l:'Diâmetro Calculado por Circunferência (mm)',v:d.diametro_externo_calculado_mm||'—'}]);
       y = row2(y,[{l:'Comprimento/Altura (mm)',v:d.comprimento},{l:'Volume (litros)',v:d.volume}]);
       y = row2(y,[{l:'Espessura de Parede (mm)',v:d.espessura_parede},{l:'Material do Casco',v:d.material_casco}]);
+      y = row2(y,[{l:'Possui Isolamento Térmico?',v:d.possui_isolamento},{l:'',v:''}]);
     } else if (d.tipo==='caldeira') {
-      y = row2(y,[{l:'Capacidade Vapor (kg/h)',v:d.capacidade_vapor},{l:'Área Superf. Aquecimento (m²)',v:d.area_aquecimento}]);
+      y = row2(y,[{l:'Capacidade Vapor (kg/h)',v:d.capacidade_vapor},{l:'Área de Superfície de Aquecimento (m²)',v:d.area_aquecimento}]);
       y = row2(y,[{l:'Combustível',v:d.combustivel},{l:'Pressão de Projeto (kgf/cm²)',v:d.pressao_projeto}]);
       y = row1(y,'Material do Casco',d.material_casco,true);
+      y = row2(y,[{l:'Possui Isolamento Térmico?',v:d.possui_isolamento},{l:'',v:''}]);
     } else if (d.tipo==='tubulacao') {
       y = row2(y,[{l:'Bitola Nominal',v:d.bitola==='Outro'?d.bitola_outro:d.bitola},{l:'Comprimento (m)',v:d.comprimento_m}]);
       y = row2(y,[{l:'Espessura de Parede (mm)',v:d.espessura_parede},{l:'Classe de Pressão (ANSI/ASME)',v:d.classe_pressao}]);
       y = row2(y,[{l:'Material',v:d.material},{l:'Isolamento Térmico',v:d.isolamento}]);
     } else if (d.tipo==='tanque') {
-      y = row2(y,[{l:'Diametro (m)',v:d.diametro},{l:'Altura (m)',v:d.altura}]);
-      y = row2(y,[{l:'Volume (m3)',v:d.volume},{l:'Tipo de Teto',v:d.teto}]);
+      y = row2(y,[{l:'Diâmetro (m)',v:d.diametro},{l:'Altura (m)',v:d.altura}]);
+      y = row2(y,[{l:'Volume (m³)',v:d.volume},{l:'Tipo de Teto',v:d.teto}]);
       y = row2(y,[{l:'Material',v:d.material},{l:'Revestimento',v:d.revestimento}]);
     }
     y+=2;
 
     // D — DISPOSITIVOS
     y = secTit(y,'D','Dispositivos de Segurança');
-    y = row2(y,[{l:'Possui manômetro',v:d.possui_manometro},{l:'Manômetro calibrado',v:d.manometro_calibrado}]);
+    y = row2(y,[{l:'Possui Manômetro?',v:d.possui_manometro},{l:'Manômetro Calibrado?',v:d.manometro_calibrado}]);
     if (d.possui_manometro==='Sim') {
-      y = row2(y,[{l:'N° Cert. Calib. Manômetro',v:d.cert_manometro},{l:'Vencimento Calibração',v:d.venc_manometro}]);
+      y = row2(y,[{l:'Número de Certificado do Manômetro',v:d.cert_manometro},{l:'Vencimento da Calibração',v:fmtData(d.venc_manometro)}]);
     }
-    y = row2(y,[{l:'Possui PSV (válvula segurança)',v:d.possui_valvula},{l:'PSV calibrada',v:d.valvula_calibrada}]);
+    y = row2(y,[{l:'Possui PSV / Válvula de Segurança?',v:d.possui_valvula},{l:'PSV Calibrada?',v:d.valvula_calibrada}]);
     if (d.possui_valvula==='Sim') {
-      y = row2(y,[{l:'PA da PSV (kgf/cm2)',v:d.pa_valvula},{l:'Adequada ao equipamento',v:d.valvula_adequada}]);
-      y = row2(y,[{l:'N° Cert. Calib. PSV',v:d.cert_valvula},{l:'Vencimento Calibração PSV',v:d.venc_valvula}]);
-      if (d.motivo_valvula_inadequada) y = row1(y,'Motivo inadequação PSV',d.motivo_valvula_inadequada,true);
+      y = row2(y,[{l:'Pressão de Ajuste/Abertura da PSV (kgf/cm²)',v:d.pa_valvula},{l:'PSV Adequada ao Equipamento?',v:d.valvula_adequada}]);
+      y = row2(y,[{l:'Número de Certificado da PSV',v:d.cert_valvula},{l:'Vencimento da Calibração da PSV',v:fmtData(d.venc_valvula)}]);
+      if (d.motivo_valvula_inadequada) y = row1(y,'Motivo da Inadequação da PSV',d.motivo_valvula_inadequada,true);
     }
-    y = row2(y,[{l:'Possui purgador',v:d.possui_purgador},{l:'Possui DCBI',v:d.possui_dcbi}]);
+    y = row2(y,[{l:'Possui Purgador?',v:d.possui_purgador},{l:'Possui DCBI?',v:d.possui_dcbi}]);
+    if (d.tipo === 'caldeira' || d.tipo === 'tanque') {
+      y = row2(y,[{l:'Possui Indicador de Nível?',v:d.possui_indicador_nivel},{l:'',v:''}]);
+    }
     y+=2;
 
     // E — DOCUMENTAÇÃO
@@ -3241,6 +3279,9 @@ async function gerarPDFEquips(indices, completo) {
       doc.text(da,ML+22,y+5);
       y+=Math.max(7,da.length*4.5+2);
     }
+    if (d.prazo_envio_docs) {
+      y = row1(y, 'Prazo para Envio de Documentos', fmtData(d.prazo_envio_docs), true);
+    }
     if (d.obs_docs) {
       y=ck(y,8);
       doc.setFillColor(...LGRAY);doc.rect(ML,y,CW,7,'F');
@@ -3253,8 +3294,8 @@ async function gerarPDFEquips(indices, completo) {
 
     // F — CONDIÇÕES DE SERVIÇO
     y = secTit(y,'F','Condições de Serviço');
-    y = row2(y,[{l:'Trabalho em altura',v:d.trabalho_altura},{l:'Necessita TH',v:d.necessita_th}]);
-    y = row2(y,[{l:'Espaço confinado',v:d.espaco_confinado},{l:'Necessita andaime',v:d.necessita_scaffold}]);
+    y = row2(y,[{l:'Requer Trabalho em Altura?',v:d.trabalho_altura},{l:'Necessita Teste Hidrostático?',v:d.necessita_th}]);
+    y = row2(y,[{l:'Acesso por Espaço Confinado?',v:d.espaco_confinado},{l:'Requer Uso de Andaime?',v:d.necessita_scaffold}]);
     const endsChecks = Object.entries(d._checks||{}).filter(([k,v])=>!k.startsWith('doc_')&&v).map(([k])=>k.replace(/_/g,' '));
     if (endsChecks.length) {
       y=ck(y,8);
