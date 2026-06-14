@@ -1,7 +1,7 @@
 // service-worker.js - ColectTap PWA
 const CACHE_NAME = 'colecttap-cache-v2.16';
 const FILES_TO_CACHE = [
-  './ColectTap_v2_16.html',
+  './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
