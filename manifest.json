@@ -1,0 +1,25 @@
+{
+  "name": "ColectTap - Levantamento NR-13",
+  "short_name": "ColectTap",
+  "description": "Coleta de dados para inspeção de equipamentos NR-13 - Engetap Engenharia",
+  "start_url": "./ColectTap_v2_16.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1b2a",
+  "theme_color": "#0d1b2a",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
