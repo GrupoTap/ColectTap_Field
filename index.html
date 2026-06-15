@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.16 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.17 — Levantamento NR-13 · Engetap</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -325,7 +325,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.16 · GAS v1.17</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.17 · GAS v1.18</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -678,7 +678,45 @@ input[type=file]{display:none}
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.16';
+const APP_VERSION = '2.17';
+
+// ── ColectPhotoDB — IndexedDB para dataUrls completas (v2.17) ───────────────
+const ColectPhotoDB = (() => {
+  const DB_NAME = 'ColectTapPhotos', DB_VERSION = 1, STORE = 'photos';
+  let _db = null;
+  function openDB() {
+    if (_db) return Promise.resolve(_db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(DB_NAME, DB_VERSION);
+      r.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
+      r.onsuccess = e => { _db = e.target.result; res(_db); };
+      r.onerror   = e => rej(e.target.error);
+    });
+  }
+  async function put(key, dataUrl) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(dataUrl, key);
+      tx.oncomplete = () => res(true);
+      tx.onerror    = e  => rej(e.target.error);
+    });
+  }
+  async function get(key) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const r  = tx.objectStore(STORE).get(key);
+      r.onsuccess = e => res(e.target.result || null);
+      r.onerror   = e => rej(e.target.error);
+    });
+  }
+  function buildKey(id_os, id_equip, fotoKey) {
+    return `${id_os}__${id_equip}__${fotoKey}`;
+  }
+  return { put, get, buildKey };
+})();
+// ── fim ColectPhotoDB ───────────────────────────────────────────────────────
 
 function esc(v) {
   return String(v == null ? '' : v)
@@ -2241,13 +2279,20 @@ function handlePhotoSelected(event) { markDirty();
         tc.getContext('2d').drawImage(img, 0, 0, tw, th);
         thumbUrl = tc.toDataURL('image/jpeg', 0.5);
       } catch(e) { thumbUrl = null; }
+      const storeKey = ColectPhotoDB.buildKey(
+        (SES.os && SES.os.id_os) || 'sem_os',
+        equipId,
+        key
+      );
+      ColectPhotoDB.put(storeKey, dataUrl).catch(e => console.warn('ColectPhotoDB.put:', e));
       SES.fotos[key] = {
         key,
         label: SES.fotos[key + '_label'] || legendaDefault,
         secao: target.secao,
         campo_ref: target.campo_ref,
         dataUrl, w, h,
-        thumbUrl,           // ← ADICIONADO
+        thumbUrl,
+        storeKey,
         origem: target.origem,
         created_at: new Date().toISOString(),
         id_equipamento_colect: equipId
@@ -2403,8 +2448,8 @@ function _stripDataUrls(fotosObj) {
   Object.entries(fotosObj).forEach(([k, v]) => {
     if (k.endsWith('_label')) { stripped[k] = v; return; }
     if (v && typeof v === 'object') {
-      const { dataUrl, thumbUrl, ...meta } = v;
-      stripped[k] = { ...meta, thumbUrl: thumbUrl || null, _hasData: !!dataUrl };
+      const { dataUrl, thumbUrl, storeKey, ...meta } = v;
+      stripped[k] = { ...meta, thumbUrl: thumbUrl || null, storeKey: storeKey || null, _hasData: !!(dataUrl || storeKey) };
     } else {
       stripped[k] = v;
     }
@@ -2588,11 +2633,14 @@ function renderEnvioList() {
       const thumbHtml = f.dataUrl
         ? `<img class="foto-thumb-mini" src="${f.dataUrl}" alt="">`
         : `<span style="font-size:18px">🖼️</span>`;
+      const avisoMini = f.enviavel === false
+        ? `<span style="color:#f5a623;font-size:10px;margin-left:4px" title="Só miniatura — recapture para enviar">⚠️</span>`
+        : '';
       return `<div class="foto-radio-row">
         <input type="radio" id="${radioId}" name="radio_capa_${idx}" value="${esc(f.key)}" ${isSelected ? 'checked' : ''}
           onchange="selecionarFotoCapa(${idx}, '${esc(f.key)}')">
         ${thumbHtml}
-        <label for="${radioId}" class="foto-radio-label">${esc(f.label || f.key)}</label>
+        <label for="${radioId}" class="foto-radio-label">${esc(f.label || f.key)}${avisoMini}</label>
       </div>`;
     }).join('') : '<p style="font-size:12px;color:var(--text2);padding:4px 0">Nenhuma foto capturada.</p>';
 
@@ -2622,14 +2670,14 @@ function _fotosDisponiveis(eq) {
   const src = eq._fotos || {};
   Object.entries(src).forEach(([k, v]) => {
     if (k.endsWith('_label') || !v) return;
-    if (v.dataUrl || v._hasData || v.thumbUrl) {
+    if (v.dataUrl || v._hasData || v.thumbUrl || v.storeKey) {
       const fKey = v.key || k;
-      // Prioridade: dataUrl (memória) → thumbUrl (localStorage) → null (emoji)
       const dataUrl = v.dataUrl || v.thumbUrl || null;
       out.push({
         key: fKey,
-        label: src[(fKey) + '_label'] || v.label || LEGENDAS_TECNICAS[fKey] || k,
-        dataUrl
+        label:    src[(fKey) + '_label'] || v.label || LEGENDAS_TECNICAS[fKey] || k,
+        dataUrl,
+        enviavel: !!(v.dataUrl || v.storeKey),
       });
     }
   });
@@ -2958,7 +3006,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.16  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
+    doc.text('ColectTap v2.17  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
 
     // ── Foto da capa (se disponível) ──
     if (eq && eq.foto_capa_key && eq._fotos) {
@@ -3640,6 +3688,34 @@ const LEGENDAS_TECNICAS = {
 // ═══════════════════════════════════════════════════════════════
 // NORMALIZAÇÃO DE FOTOS
 // ═══════════════════════════════════════════════════════════════
+async function normalizarFotosParaEnvioAsync(eq) {
+  const src = eq._fotos || {};
+  const out = [], faltantes = [];
+  for (const [k, v] of Object.entries(src)) {
+    if (k.endsWith('_label') || !v || typeof v !== 'object') continue;
+    const fotoKey = v.key || k;
+    let dataUrl = v.dataUrl || null;
+    if (!dataUrl && v.storeKey) {
+      try { dataUrl = await ColectPhotoDB.get(v.storeKey); } catch(e) { dataUrl = null; }
+    }
+    if (!dataUrl) {
+      if (v._hasData || v.thumbUrl) faltantes.push({ key: fotoKey, label: src[fotoKey + '_label'] || v.label || LEGENDAS_TECNICAS[fotoKey] || fotoKey });
+      continue;
+    }
+    out.push({
+      key: fotoKey,
+      label:     src[fotoKey + '_label'] || v.label || LEGENDAS_TECNICAS[fotoKey] || fotoKey,
+      secao:     v.secao     || 'obs',
+      campo_ref: v.campo_ref || fotoKey,
+      origem:    v.origem    || 'desconhecida',
+      created_at: v.created_at || '',
+      id_equipamento_colect: v.id_equipamento_colect || eq.id_equipamento_colect || '',
+      dataUrl, w: v.w || 0, h: v.h || 0,
+    });
+  }
+  return { fotos: out, faltantes };
+}
+
 function normalizarFotosParaEnvio(eq) {
   const src = eq._fotos || {};
   const out = [];
@@ -3708,15 +3784,16 @@ async function enviarGAS() {
       inspetor:   SES.inspetor.nome,
       app_version: APP_VERSION,
       data_coleta: new Date().toISOString(),
-      equipamentos: SES.equipamentos.map(eq => {
+      equipamentos: await Promise.all(SES.equipamentos.map(async eq => {
         const { _fotos, _salvo, _ts, ...rest } = eq;
+        const { fotos } = await normalizarFotosParaEnvioAsync(eq);
         return {
           ...rest,
           id_equipamento_colect: eq.id_equipamento_colect || newEquipId(),
-          fotos: normalizarFotosParaEnvio(eq),
+          fotos,
           status_completude: eq.status_completude || (eq._nao_enquadrado ? 'nao_enquadrado' : 'salvo')
         };
-      })
+      }))
     };
 
     // Verificar tamanho do payload
@@ -3802,13 +3879,36 @@ async function _enviarParaRelatorio(indices, osCompleta) {
   await new Promise(r => setTimeout(r, 80));
 
   try {
-    const equipsSelecionados = indices.map(idx => {
+    const fotosResolvidas = await Promise.all(
+      indices.map(idx => normalizarFotosParaEnvioAsync(SES.equipamentos[idx]))
+    );
+
+    const avisos = [];
+    fotosResolvidas.forEach((res, ri) => {
+      const eq  = SES.equipamentos[indices[ri]];
+      const tag = eq.tag || eq.numero_equip || ('EQ-' + (indices[ri] + 1));
+      if (res.faltantes.length) avisos.push(`${tag}: ${res.faltantes.map(f => f.label).join(', ')}`);
+    });
+    if (avisos.length) {
+      hideLoading();
+      const continuar = confirm(
+        '⚠️ As fotos abaixo existem apenas como miniatura e não serão enviadas:\n\n'
+        + avisos.join('\n')
+        + '\n\nRecapture-as no campo ou continue sem elas.'
+        + '\n\nContinuar mesmo assim?'
+      );
+      if (!continuar) return;
+      showLoading('Preparando envio…');
+      await new Promise(r => setTimeout(r, 80));
+    }
+
+    const equipsSelecionados = indices.map((idx, ri) => {
       const eq = SES.equipamentos[idx];
       const { _fotos, _salvo, _ts, ...rest } = eq;
       return {
         ...rest,
         id_equipamento_colect: eq.id_equipamento_colect || newEquipId(),
-        fotos: normalizarFotosParaEnvio(eq),
+        fotos: fotosResolvidas[ri].fotos,
         status_completude: eq.status_completude || (eq._nao_enquadrado ? 'nao_enquadrado' : 'salvo'),
         foto_capa_key: eq.foto_capa_key || '',
         sync_status: 'liberado_relatorio',

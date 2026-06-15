@@ -1,5 +1,5 @@
 // service-worker.js - ColectTap PWA
-const CACHE_NAME = 'colecttap-cache-v2.16';
+const CACHE_NAME = 'colecttap-cache-v2.17';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json',
@@ -26,12 +26,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-first para garantir dados atualizados; cache como fallback offline
+  const url = event.request.url;
+  // Nunca interceptar GAS (evita cache de resposta opaca e interferência com POST/redirect)
+  if (url.includes('script.google.com')) return;
+  // Nunca cachear POST (cache.put rejeita POST silenciosamente no Chrome)
+  if (event.request.method !== 'GET') return;
+  // Nunca cachear data: ou blob:
+  if (url.startsWith('data:') || url.startsWith('blob:')) return;
+
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then((response) => {
-        const resClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return response;
       })
       .catch(() => caches.match(event.request))
