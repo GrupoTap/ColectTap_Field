@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.18 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.19 — Levantamento NR-13 · Engetap</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -325,7 +325,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.18 · GAS v1.18</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.19 · GAS v1.18</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -567,7 +567,7 @@ input[type=file]{display:none}
 
     <p class="sec-label">Enviar para Relatório Oficial</p>
     <div class="warn-box" style="margin-bottom:12px">
-      ☁️ Selecione os equipamentos finalizados e envie para o escritório gerar o relatório NR-13 oficial. Após o envio, o equipamento fica marcado como <strong>liberado</strong> e pode ser reenviado se necessário.
+      ☁️ Selecione os equipamentos finalizados e envie para o escritório gerar o relatório NR-13 oficial. Após o envio, o equipamento fica marcado como <strong>enviado ao Manager</strong> e pode ser reenviado se necessário.
     </div>
 
     <div id="exp-envio-list"></div>
@@ -678,7 +678,7 @@ input[type=file]{display:none}
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.18';
+const APP_VERSION = '2.19';
 
 // ── ColectPhotoDB — IndexedDB para dataUrls completas (v2.17) ───────────────
 const ColectPhotoDB = (() => {
@@ -1791,10 +1791,17 @@ function renderIdentificacao(t) {
     ${campo('localizacao', 'Localização na Planta', 'text', {placeholder: 'Sala de compressores, área 3…'})}
     ${toggle('placa_indelevel', 'Possui placa de identificação indelével?')}
     ${toggle('necessita_tag', 'Necessita identificação de TAG/Categoria?')}
+    <p class="sec-label">Fixação do Equipamento</p>
+    ${toggle('fixado', 'O equipamento está fixado?', ['Sim', 'Não'])}
+    ${SES.dados.fixado === 'Não' ? campo('justificativa_fixacao', 'Justificativa (não fixado)', 'textarea', {placeholder: 'Descreva o motivo de o equipamento não estar fixado.'}) : ''}
     ${campo('obs_ident', 'Observações sobre identificação', 'textarea', {placeholder: 'Placa ilegível, tag ausente…'})}`;
 
   const fotosSecao = getFotosSecao('ident', t);
-  return html + '<p class="sec-label">📷 Fotos desta Seção</p>' + fotosSecao.map(d => renderFotoBlock(d, 'ident')).join('');
+  const fotosComFixacao = [...fotosSecao];
+  if (SES.dados.fixado === 'Sim' || SES.dados.fixado === 'Não') {
+    fotosComFixacao.push({ key: 'foto_fixacao', defaultLabel: LEGENDAS_TECNICAS['foto_fixacao'] || 'Foto da Fixação do Equipamento' });
+  }
+  return html + '<p class="sec-label">📷 Fotos desta Seção</p>' + fotosComFixacao.map(d => renderFotoBlock(d, 'ident')).join('');
 }
 
 function onCodigoProjetoChange(val) {
@@ -1859,6 +1866,7 @@ function renderDimensoes(t) {
         ${campo('comprimento', 'Comprimento / Altura (mm)', 'number', {placeholder: 'Ex: 2000'})}
         ${campo('volume', 'Volume (litros)', 'number', {placeholder: 'Ex: 500'})}
       </div>
+      ${campo('altura_tampo', 'Altura do Tampo (mm)', 'number', {placeholder: 'Ex: 150'})}
       ${campo('espessura_parede', 'Espessura de Parede (mm)', 'number', {placeholder: 'Ex: 10'})}
       ${campo('material_casco', 'Material do Casco', 'text', {placeholder: 'Ex: Aço carbono ASTM A516 Gr.70'})}`;
   }
@@ -1963,14 +1971,20 @@ function renderDispositivos(t) {
     html += campo('obs_valvula', 'Observação sobre válvula de segurança', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade.'});
   }
 
+  const temAterr = SES.dados.possui_aterramento || '';
   html += `<p class="sec-label">Outros Dispositivos</p>
     ${toggle('possui_purgador', 'Possui purgador?', ['Sim','Não','N/A'])}
     ${toggle('possui_dcbi', 'Possui DCBI?', ['Sim','Não','N/A'])}
     ${toggle('possui_valvula_retencao', 'Possui válvula de retenção?', ['Sim','Não','N/A'])}
     ${(t === 'caldeira' || t === 'tanque') ? toggle('possui_indicador_nivel', 'Possui Indicador de Nível?', ['Sim','Não']) : ''}
-    ${t === 'caldeira' ? toggle('possui_pressostato', 'Possui pressostato de segurança?', ['Sim','Não']) : ''}`;
+    ${t === 'caldeira' ? toggle('possui_pressostato', 'Possui pressostato de segurança?', ['Sim','Não']) : ''}
+    <p class="sec-label">Aterramento</p>
+    ${toggle('possui_aterramento', 'Possui aterramento elétrico?', ['Sim','Não','N/A'])}`;
 
   const fotosDisp = [];
+  if (temAterr === 'Sim' || temAterr === 'Não') {
+    fotosDisp.push('foto_aterramento');
+  }
   if (temMan === 'Sim') {
     fotosDisp.push('foto_manometro');
     const manCalib = SES.dados.manometro_calibrado || '';
@@ -2678,17 +2692,19 @@ function renderEnvioList() {
     const tag = esc(eq.tag || eq.numero_equip || ('EQ-' + (idx+1)));
     const liberado = eq.sync_status === 'liberado_relatorio';
     const synced   = eq.sync_status === 'synced';
-    const statusLabel = liberado ? '<span class="pill pill-liberado">✅ Liberado</span>'
+    const statusLabel = liberado ? '<span class="pill pill-liberado">✅ Enviado ao Manager</span>'
                        : synced  ? '<span class="pill pill-synced">☁ Synced</span>'
                        :           '<span class="pill" style="background:var(--surf2)">📱 Local</span>';
 
     // Fotos disponíveis: prioriza _fotos em memória, fallback para fotos_json
     const fotosArr = _fotosDisponiveis(eq);
     const temFotos = fotosArr.length > 0;
+    // Chave padrão da capa: foto_geral_equip se disponível, senão a primeira foto
+    const defaultCapaKey = fotosArr.find(x => x.key === 'foto_geral_equip') ? 'foto_geral_equip' : (fotosArr[0]?.key || '');
 
     const fotosHtml = temFotos ? fotosArr.map(f => {
       const radioId = `radio_capa_${idx}_${esc(f.key)}`;
-      const isSelected = eq.foto_capa_key === f.key;
+      const isSelected = eq.foto_capa_key ? eq.foto_capa_key === f.key : f.key === defaultCapaKey;
       const thumbHtml = f.dataUrl
         ? `<img class="foto-thumb-mini" src="${f.dataUrl}" alt="">`
         : `<span style="font-size:18px">🖼️</span>`;
@@ -3065,7 +3081,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.18  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
+    doc.text('ColectTap v2.19  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
 
     // ── Foto da capa (se disponível) ──
     if (eq && eq.foto_capa_key && eq._fotos) {
@@ -3665,7 +3681,7 @@ function exportarCSV() {
     'Localizacao','Placa_Indelevel','PMTA','P_Trabalho','P_Teste','Temperatura','Fluido',
     'Classe_Fluido','Volume','Diametro','Comprimento','Material','Manometro','Man_Calibrado',
     'Cert_Man','PSV','PSV_Calibrada','Cert_PSV','PA_PSV','Purgador','DCBI',
-    'Trab_Altura','Necessita_TH','Espaco_Confinado','Obs_Gerais','Obs_Inspetor',
+    'Trab_Altura','Necessita_TH','Espaco_Confinado','Fixado','Justificativa_Fixacao','Aterramento','Obs_Gerais','Obs_Inspetor',
     'Enquadra_NR13','Motivo_Nao_Enquadramento','Acao_Nao_Enquadramento','Status_Completude',
     'ID_Equipamento_Colect','Sync_Status',
     'Modo_Coleta_Inicial','Status_Coleta_Campo','Status_Coleta_Docs','Pendencias_Campo','Pendencias_Documentais'
@@ -3680,6 +3696,7 @@ function exportarCSV() {
     eq.cert_manometro, eq.possui_valvula, eq.valvula_calibrada, eq.cert_valvula,
     eq.pa_valvula, eq.possui_purgador, eq.possui_dcbi,
     eq.trabalho_altura, eq.necessita_th, eq.espaco_confinado,
+    eq.fixado || '', (eq.justificativa_fixacao||'').replace(/\n/g,' '), eq.possui_aterramento || '',
     (eq.obs_gerais||'').replace(/\n/g,' '), (eq.obs_inspetor||'').replace(/\n/g,' '),
     eq.enquadra_nr13 || '',
     eq.motivo_nao_enquadramento || '',
@@ -3742,6 +3759,8 @@ const LEGENDAS_TECNICAS = {
   foto_quebra_vacuo:     'Foto da Válvula Quebra-Vácuo',
   foto_geral_tub:        'Foto Geral da Tubulação',
   foto_ponto_alto:       'Foto do Ponto Mais Alto da Tubulação',
+  foto_fixacao:          'Foto da Fixação do Equipamento',
+  foto_aterramento:      'Foto do Aterramento Elétrico',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -4027,6 +4046,9 @@ async function _enviarParaRelatorio(indices, osCompleta) {
           if (ret.fotos_json)       eq.fotos_json = ret.fotos_json;
           if (ret.primeira_foto_url) eq.primeira_foto_url = ret.primeira_foto_url;
         }
+        // Desmarcar checkbox para evitar reenvio acidental
+        const chkEl = document.getElementById('chk_envio_' + idx);
+        if (chkEl) chkEl.checked = false;
       });
 
       // Se OS completa, gravar os_status na OS via atualizarOSColect
