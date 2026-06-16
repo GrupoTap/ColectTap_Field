@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.17 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.18 — Levantamento NR-13 · Engetap</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -325,7 +325,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.17 · GAS v1.18</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.18 · GAS v1.18</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -678,7 +678,7 @@ input[type=file]{display:none}
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.17';
+const APP_VERSION = '2.18';
 
 // ── ColectPhotoDB — IndexedDB para dataUrls completas (v2.17) ───────────────
 const ColectPhotoDB = (() => {
@@ -1338,7 +1338,17 @@ function editarEquip(idx) {
   }
   SES.pendencias = eq._pendencias || [];
   SES.secAtual = 0;
+
+  // v2.18: renderizar imediatamente com thumbUrl; reidratar dataUrl do IndexedDB em segundo plano
   renderT5();
+
+  let _rehydrating = false;
+  rehydrateFotosObj(SES.fotos).then(count => {
+    if (count > 0 && currentScreen === 't5' && !_rehydrating) {
+      _rehydrating = true;
+      renderT5();
+    }
+  }).catch(e => console.warn('editarEquip rehydrate:', e));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2193,6 +2203,42 @@ function getFotosDefs(t) {
   return [...comuns, ...(extras[t] || [])];
 }
 
+// ── HELPERS DE FOTO LOCAL (v2.18) ────────────────────────────────────────────
+function getFotoPreviewSrc(foto) {
+  if (!foto || typeof foto !== 'object') return '';
+  return foto.dataUrl || foto.thumbUrl || '';
+}
+
+function fotoTemReferenciaLocal(foto) {
+  return !!(foto && typeof foto === 'object' &&
+    (foto.dataUrl || foto.thumbUrl || foto.storeKey || foto._hasData || foto.driveUrl || foto.fileId));
+}
+
+async function rehydrateFotoDataUrl(foto) {
+  if (!foto || typeof foto !== 'object') return null;
+  if (foto.dataUrl) return foto.dataUrl;
+  if (foto.storeKey) {
+    try {
+      const dataUrl = await ColectPhotoDB.get(foto.storeKey);
+      if (dataUrl) { foto.dataUrl = dataUrl; foto._hasData = true; return dataUrl; }
+    } catch(e) { console.warn('rehydrateFotoDataUrl:', e); }
+  }
+  return null;
+}
+
+async function rehydrateFotosObj(fotosObj) {
+  if (!fotosObj || typeof fotosObj !== 'object') return 0;
+  let count = 0;
+  for (const [k, v] of Object.entries(fotosObj)) {
+    if (k.endsWith('_label') || !v || typeof v !== 'object') continue;
+    const antes = !!v.dataUrl;
+    const dataUrl = await rehydrateFotoDataUrl(v);
+    if (dataUrl && !antes) count++;
+  }
+  return count;
+}
+// ── fim HELPERS DE FOTO LOCAL ─────────────────────────────────────────────────
+
 function renderFotoBlock(def, secaoId) {
   const key = def.key;
   const labelKey = key + '_label';
@@ -2209,10 +2255,20 @@ function renderFotoBlock(def, secaoId) {
           onblur="this.style.borderColor='var(--border)'">
       </div>
       <div style="padding:0 14px 12px">
-        ${foto && foto.dataUrl
-          ? `<img src="${foto.dataUrl}" class="photo-thumb" style="margin-bottom:6px"><span class="photo-clear" onclick="clearFoto('${key}')">✕ Remover foto</span>`
-          : `<div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost btn-sm" onclick="preparePhoto('${key}','${secaoId}','${key}','camera')">📷 Câmera</button><button type="button" class="btn btn-ghost btn-sm" onclick="preparePhoto('${key}','${secaoId}','${key}','galeria')">🖼️ Galeria</button></div>`
-        }
+        ${(() => {
+            const previewSrc = getFotoPreviewSrc(foto);
+            const temRef = fotoTemReferenciaLocal(foto);
+            if (previewSrc) {
+              const avisoThumb = (!foto.dataUrl && foto.thumbUrl)
+                ? `<div style="font-size:11px;color:var(--warn);margin:2px 0 6px">Prévia local — foto completa recuperada no envio.</div>`
+                : '';
+              return `<img src="${previewSrc}" class="photo-thumb" style="margin-bottom:6px">${avisoThumb}<span class="photo-clear" onclick="clearFoto('${key}')">✕ Remover foto</span>`;
+            } else if (temRef) {
+              return `<div id="photo-placeholder-${key}" class="info-box" style="font-size:12px;margin-bottom:8px">📷 Foto salva internamente. Carregando prévia...</div><span class="photo-clear" onclick="clearFoto('${key}')">✕ Remover foto</span>`;
+            } else {
+              return `<div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost btn-sm" onclick="preparePhoto('${key}','${secaoId}','${key}','camera')">📷 Câmera</button><button type="button" class="btn btn-ghost btn-sm" onclick="preparePhoto('${key}','${secaoId}','${key}','galeria')">🖼️ Galeria</button></div>`;
+            }
+          })()}
       </div>
     </div>`;
 }
@@ -2379,8 +2435,11 @@ function renderT6() {
 
   let fotos_html = '';
   Object.keys(SES.fotos).forEach(f => {
-    if (f.endsWith('_label') || !SES.fotos[f] || !SES.fotos[f].dataUrl) return;
-    fotos_html += `<img src="${SES.fotos[f].dataUrl}" style="width:48%;border-radius:8px;margin:2px">`;
+    const fObj = SES.fotos[f];
+    if (f.endsWith('_label') || !fObj) return;
+    const src = getFotoPreviewSrc(fObj);
+    if (!src) return;
+    fotos_html += `<img src="${src}" style="width:48%;border-radius:8px;margin:2px">`;
   });
 
   if (isNaoEnquadrado()) {
@@ -3006,7 +3065,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.17  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
+    doc.text('ColectTap v2.18  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
 
     // ── Foto da capa (se disponível) ──
     if (eq && eq.foto_capa_key && eq._fotos) {
@@ -3416,8 +3475,8 @@ async function gerarPDFEquips(indices, completo) {
 
     } // end if(!naoEnq) — seções A-F
 
-    // FOTOS — agrupadas por seção, sem lacunas
-    const fotosPorSecao = normalizarFotosPDF(eq);
+    // FOTOS — agrupadas por seção, sem lacunas (v2.18: async para recuperar do IndexedDB)
+    const fotosPorSecao = await normalizarFotosPDFAsync(eq);
     const secaoNomes = {
       enquadramento: 'Enquadramento NR-13',
       ident:         'Identificação / Placa',
@@ -3428,7 +3487,7 @@ async function gerarPDFEquips(indices, completo) {
       servico:       'Instalação e Acesso',
       obs:           'Observações / Anomalias',
     };
-    const todasAsFotos = normalizarFotosParaEnvio(eq);
+    const { fotos: todasAsFotos } = await normalizarFotosParaEnvioAsync(eq);
     if (todasAsFotos.length) {
       // Página nova de fotos
       y = newPage(eq);
@@ -3740,6 +3799,15 @@ function normalizarFotosParaEnvio(eq) {
 
 function normalizarFotosPDF(eq) {
   return normalizarFotosParaEnvio(eq).reduce((acc, f) => {
+    const sec = f.secao || 'obs';
+    (acc[sec] ||= []).push(f);
+    return acc;
+  }, {});
+}
+
+async function normalizarFotosPDFAsync(eq) {
+  const { fotos } = await normalizarFotosParaEnvioAsync(eq);
+  return fotos.reduce((acc, f) => {
     const sec = f.secao || 'obs';
     (acc[sec] ||= []).push(f);
     return acc;

@@ -1,5 +1,5 @@
 // service-worker.js - ColectTap PWA
-const CACHE_NAME = 'colecttap-cache-v2.17';
+const CACHE_NAME = 'colecttap-cache-v2.18';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json',
