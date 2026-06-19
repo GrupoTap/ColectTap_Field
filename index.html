@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ColectTap v2.19 — Levantamento NR-13 · Engetap</title>
+<title>ColectTap v2.20 — Levantamento NR-13 · Engetap</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -325,7 +325,7 @@ input[type=file]{display:none}
     <div class="pin-logo">
       <div class="pl-badge">COLECT</div>
       <div class="pl-name">Tap</div>
-      <div class="pl-sub">Engetap · NR-13 · v2.19 · GAS v1.18</div>
+      <div class="pl-sub">Engetap · NR-13 · v2.20 · GAS v1.20</div>
     </div>
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
@@ -677,8 +677,8 @@ input[type=file]{display:none}
 // CONFIG
 // ═══════════════════════════════════════════════════════════════
 // URL de produção do ColectTap GAS — manter igual no Field e Manager
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyFERcJg2F-mKO8KgyBVonmw2veKMAYkdWhn9t2cWTlgnNSAsf5iAF6hCbnpiQAy0Iw/exec';
-const APP_VERSION = '2.19';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxbPaeo_3sDCrNOGe1Db__PwDwv8XOTNoj1jeLyqCp9KrXtAvBGBWggJFAz5hYbIjC4/exec';
+const APP_VERSION = '2.20';
 
 // ── ColectPhotoDB — IndexedDB para dataUrls completas (v2.17) ───────────────
 const ColectPhotoDB = (() => {
@@ -1722,7 +1722,7 @@ function toggle(id, label, opts=['Sim','Não','N/A']) {
   return `<div class="field"><label>${label}</label><div class="toggle-row">${btns}</div></div>`;
 }
 
-const TOGGLES_REATIVOS = new Set(['status_documentacao','enquadra_nr13','possui_manometro','possui_valvula','valvula_adequada','modo_medicao_diametro','manometro_calibrado','valvula_calibrada']);
+const TOGGLES_REATIVOS = new Set(['status_documentacao','enquadra_nr13','possui_manometro','possui_valvula','valvula_adequada','modo_medicao_diametro','manometro_calibrado','valvula_calibrada','possui_dispositivo_sobrepressao','possui_dispositivo_vacuo','possui_valvula_corta_chamas','possui_cert_dispositivos_seguranca']);
 function setToggle(id, val, el, cls) { markDirty(); debounceAutosave('toggle');
   const row = el.closest('.toggle-row');
   row.querySelectorAll('.toggle-opt').forEach(b => b.className = 'toggle-opt');
@@ -1770,7 +1770,6 @@ function renderIdentificacao(t) {
     vaso:    [{v:'I',l:'Categoria I'},{v:'II',l:'Categoria II'},{v:'III',l:'Categoria III'},{v:'IV',l:'Categoria IV'},{v:'V',l:'Categoria V'}],
     caldeira:[{v:'A',l:'Categoria A'},{v:'B',l:'Categoria B'}],
     tubulacao:[{v:'I',l:'Classe I'},{v:'II',l:'Classe II'},{v:'III',l:'Classe III'}],
-    tanque:  [{v:'I',l:'Categoria I'},{v:'II',l:'Categoria II'},{v:'III',l:'Categoria III'}],
   }[t] || [];
 
   const codigoOpts = getCodigoProjetoSelect(t).map(v => ({v, l: v}));
@@ -1783,7 +1782,7 @@ function renderIdentificacao(t) {
     ${campo('numero_equip', 'Número do Equipamento (Fabricante)', 'text', {placeholder: 'Nº dado pelo fabricante'})}
     ${campo('ano_fabricacao', 'Ano de Fabricação', 'number', {placeholder: 'Ex: 2015'})}
     <div class="field-row2">
-      ${campo('categoria', 'Categoria NR-13', 'select', {options: tipoNR})}
+      ${t !== 'tanque' ? campo('categoria', 'Categoria NR-13', 'select', {options: tipoNR}) : ''}
       ${campo('codigo_projeto', 'Código de Projeto', 'select', {options: codigoOpts, extra: `onchange="onCodigoProjetoChange(this.value)"`})}
     </div>
     ${mostrarOutro ? campo('codigo_projeto_outro', 'Código de Projeto (especificar)', 'text', {placeholder: 'Ex: NR-12, EN 13445…'}) : ''}
@@ -1825,12 +1824,12 @@ function renderProjeto(t) {
     {v:'D',l:'Classe D — Outros fluidos não enquadrados nas classes anteriores'},
   ];
   const html = `
-    <div class="field-row2">
+    ${t !== 'tanque' ? `<div class="field-row2">
       ${campo('pmta', 'PMTA (kgf/cm²)', 'number', {placeholder: 'Pressão máx. trab. admissível'})}
       ${campo('pressao_trabalho', 'Pressão de Trabalho (kgf/cm²)', 'number', {placeholder: 'Pressão operacional'})}
     </div>
-    ${campo('pressao_teste', 'Pressão de Teste Hidrostático (kgf/cm²)', 'number', {placeholder: '1,5 × PMTA'})}
-    ${campo('fluido', 'Fluido de Trabalho', 'select', {options: fluidos})}
+    ${campo('pressao_teste', 'Pressão de Teste Hidrostático (kgf/cm²)', 'number', {placeholder: '1,5 × PMTA'})}` : ''}
+    ${campo('fluido', t==='tanque' ? 'Fluido Armazenado' : 'Fluido de Trabalho', 'select', {options: fluidos})}
     ${campo('fluido_outro', 'Especificar fluido (se Outro)', 'text', {placeholder: 'Descreva o fluido'})}
     ${campo('classe_fluido', 'Classe do Fluido (NR-13)', 'select', {options: classesFluido})}
     <div class="field-row2">
@@ -1838,7 +1837,7 @@ function renderProjeto(t) {
       ${campo('tipo_ultima_inspecao', 'Tipo da Últ. Inspeção', 'select', {options: ['Interna','Externa','Interna + Externa','Não inspecionado']})}
     </div>
     <p class="sec-label">Condições de Operação</p>
-${campo('temperatura', 'Temperatura Média de Operação (°C)', 'number', {placeholder: 'Ex: 80 (deixe vazio se desconhecida)'})}
+${campo('temperatura', t==='tanque' ? 'Temperatura de Operação (°C)' : 'Temperatura Média de Operação (°C)', 'number', {placeholder: 'Ex: 80 (deixe vazio se desconhecida)'})}
 ${t !== 'tubulacao' ? toggle('possui_isolamento', 'Possui isolamento térmico?', ['Sim','Não','N/A']) : ''}
 ${SES.dados.possui_isolamento === 'Sim' ? renderFotoBlock({key:'foto_isolamento', defaultLabel:'Foto do Isolamento Térmico'}, 'projeto') : ''}
 ${toggle('ja_inspecionado', 'Já foi inspecionado anteriormente?')}`;
@@ -1927,74 +1926,126 @@ function calcDiamFromCirc(val) {
 
 // ── SEÇÃO D: DISPOSITIVOS DE SEGURANÇA ──
 function renderDispositivos(t) {
-  const temMan  = SES.dados.possui_manometro || '';
-  const temPSV  = SES.dados.possui_valvula   || '';
-  const psvAdq  = SES.dados.valvula_adequada  || '';
+  let html = '';
+  const fotosDisp = [];
 
-  let html = `<p class="sec-label">Manômetro / Indicador de Pressão</p>
-    ${toggle('possui_manometro', 'Possui manômetro?', ['Sim','Não','N/A'])}`;
+  if (t === 'tanque') {
+    const temSobre    = SES.dados.possui_dispositivo_sobrepressao || '';
+    const temVacuo    = SES.dados.possui_dispositivo_vacuo || '';
+    const temCorta    = SES.dados.possui_valvula_corta_chamas || '';
+    const temCertDisp = SES.dados.possui_cert_dispositivos_seguranca || '';
 
-  if (temMan === 'Sim') {
-    const manCalib = SES.dados.manometro_calibrado || '';
-    html += toggle('manometro_calibrado', 'Manômetro calibrado?', ['Sim','Não','N/A']);
-    if (manCalib === 'Sim') {
-      html += campo('cert_manometro', 'Nº Certificado de Calibração (Manômetro)', 'text', {placeholder: 'CAL-2026-001'});
-      html += campo('venc_manometro', 'Vencimento da Calibração', 'date', {});
-    } else if (manCalib === 'Não') {
-      html += campo('motivo_nao_calibracao_man', 'Motivo da não calibração (Manômetro)', 'textarea', {placeholder: 'Ex: sem acesso ao certificado, calibração vencida, equipamento antigo…'});
+    html += `<p class="sec-label">Dispositivo Contra Sobrepressão</p>
+      ${toggle('possui_dispositivo_sobrepressao', 'Possui dispositivo contra sobrepressão?', ['Sim','Não','N/A'])}`;
+    if (temSobre === 'Sim') {
+      html += campo('tipo_dispositivo_sobrepressao', 'Tipo do Dispositivo', 'select', {options: ['Respiro normal','Respiro de emergência','Válvula de alívio','Disco de ruptura','Outro']});
+    } else if (temSobre === 'Não' || temSobre === 'N/A') {
+      html += campo('obs_dispositivo_sobrepressao', 'Observação sobre dispositivo de sobrepressão', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade (NR-13 13.7.2.1).'});
     }
-  } else if (temMan === 'Não' || temMan === 'N/A') {
-    html += campo('obs_manometro', 'Observação sobre manômetro', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade.'});
-  }
 
-  html += `<p class="sec-label">Válvula de Segurança / Alívio (PSV)</p>
-    ${toggle('possui_valvula', 'Possui válvula de segurança?', ['Sim','Não','N/A'])}`;
-
-  if (temPSV === 'Sim') {
-    const psvCalib = SES.dados.valvula_calibrada || '';
-    html += campo('pa_valvula', 'Pressão de Abertura da PSV (kgf/cm²)', 'number', {placeholder: 'Ex: 11'});
-    html += toggle('valvula_calibrada', 'PSV calibrada?', ['Sim','Não','N/A']);
-    if (psvCalib === 'Sim') {
-      html += campo('cert_valvula', 'Nº Certificado de Calibração (PSV)', 'text', {placeholder: 'CAL-2026-002'});
-      html += campo('venc_valvula', 'Vencimento da Calibração', 'date', {});
-    } else if (psvCalib === 'Não') {
-      html += campo('motivo_nao_calibracao_psv', 'Motivo da não calibração (PSV)', 'textarea', {placeholder: 'Ex: PSV sem certificado disponível, substituição pendente…'});
+    html += `<p class="sec-label">Dispositivo Contra Vácuo</p>
+      ${toggle('possui_dispositivo_vacuo', 'Possui dispositivo contra vácuo?', ['Sim','Não','N/A'])}`;
+    if (temVacuo === 'Não' || temVacuo === 'N/A') {
+      html += campo('obs_dispositivo_vacuo', 'Observação sobre dispositivo de vácuo', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade (NR-13 13.7.2.1).'});
     }
-    html += toggle('valvula_adequada', 'A PSV é adequada ao equipamento?', ['Sim','Não','Não foi possível avaliar']);
 
-    if (psvAdq === 'Não') {
-      html += campo('motivo_valvula_inadequada', 'Motivo da inadequação', 'textarea', {placeholder: 'Descreva por que a PSV não é adequada.'});
-    } else if (psvAdq === 'Não foi possível avaliar') {
-      html += campo('motivo_nao_avaliacao_valvula', 'Motivo da não avaliação', 'textarea', {placeholder: 'Ex: acesso bloqueado, placa ilegível…'});
+    html += `<p class="sec-label">Válvula Corta-Chamas</p>
+      ${toggle('possui_valvula_corta_chamas', 'Possui válvula corta-chamas?', ['Sim','Não','N/A'])}`;
+    if (temCorta === 'Não' || temCorta === 'N/A') {
+      html += campo('obs_valvula_corta_chamas', 'Observação sobre válvula corta-chamas', 'textarea', {placeholder: 'Indique se aplicável ao fluido armazenado.'});
     }
-  } else if (temPSV === 'Não' || temPSV === 'N/A') {
-    html += campo('obs_valvula', 'Observação sobre válvula de segurança', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade.'});
+
+    html += `<p class="sec-label">Plano de Manutenção e Certificados</p>
+      ${toggle('existe_plano_manutencao_dispositivos', 'Os dispositivos possuem plano de manutenção?', ['Sim','Não','N/A'])}
+      ${toggle('possui_cert_dispositivos_seguranca', 'Existe certificado de inspeção/teste dos dispositivos de sobrepressão e vácuo?', ['Sim','Não','N/A'])}`;
+    if (temCertDisp === 'Sim') {
+      html += `<div class="field-row2">
+        ${campo('cert_dispositivos_seguranca', 'Nº do Certificado', 'text', {placeholder: 'CAL-2026-003'})}
+        ${campo('venc_dispositivos_seguranca', 'Vencimento da Calibração', 'date', {})}
+      </div>`;
+    } else if (temCertDisp === 'Não') {
+      html += campo('motivo_sem_cert_dispositivos_seguranca', 'Motivo da ausência de certificado', 'textarea', {placeholder: 'Ex: dispositivo não verificado nesta visita, sem certificado disponível…'});
+    }
+
+    html += `<p class="sec-label">Outros Dispositivos</p>
+      ${toggle('possui_indicador_nivel', 'Possui Indicador de Nível?', ['Sim','Não'])}`;
+
+    if (temSobre === 'Sim') fotosDisp.push('foto_dispositivo_sobrepressao');
+    if (temVacuo === 'Sim') fotosDisp.push('foto_dispositivo_vacuo');
+    if (temCorta === 'Sim') fotosDisp.push('foto_valvula_corta_chamas');
+    if (temCertDisp === 'Sim') fotosDisp.push('foto_cert_dispositivos_seguranca');
+
+  } else {
+    const temMan  = SES.dados.possui_manometro || '';
+    const temPSV  = SES.dados.possui_valvula   || '';
+    const psvAdq  = SES.dados.valvula_adequada  || '';
+
+    html += `<p class="sec-label">Manômetro / Indicador de Pressão</p>
+      ${toggle('possui_manometro', 'Possui manômetro?', ['Sim','Não','N/A'])}`;
+
+    if (temMan === 'Sim') {
+      const manCalib = SES.dados.manometro_calibrado || '';
+      html += toggle('manometro_calibrado', 'Manômetro calibrado?', ['Sim','Não','N/A']);
+      if (manCalib === 'Sim') {
+        html += campo('cert_manometro', 'Nº Certificado de Calibração (Manômetro)', 'text', {placeholder: 'CAL-2026-001'});
+        html += campo('venc_manometro', 'Vencimento da Calibração', 'date', {});
+      } else if (manCalib === 'Não') {
+        html += campo('motivo_nao_calibracao_man', 'Motivo da não calibração (Manômetro)', 'textarea', {placeholder: 'Ex: sem acesso ao certificado, calibração vencida, equipamento antigo…'});
+      }
+    } else if (temMan === 'Não' || temMan === 'N/A') {
+      html += campo('obs_manometro', 'Observação sobre manômetro', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade.'});
+    }
+
+    html += `<p class="sec-label">Válvula de Segurança / Alívio (PSV)</p>
+      ${toggle('possui_valvula', 'Possui válvula de segurança?', ['Sim','Não','N/A'])}`;
+
+    if (temPSV === 'Sim') {
+      const psvCalib = SES.dados.valvula_calibrada || '';
+      html += campo('pa_valvula', 'Pressão de Abertura da PSV (kgf/cm²)', 'number', {placeholder: 'Ex: 11'});
+      html += toggle('valvula_calibrada', 'PSV calibrada?', ['Sim','Não','N/A']);
+      if (psvCalib === 'Sim') {
+        html += campo('cert_valvula', 'Nº Certificado de Calibração (PSV)', 'text', {placeholder: 'CAL-2026-002'});
+        html += campo('venc_valvula', 'Vencimento da Calibração', 'date', {});
+      } else if (psvCalib === 'Não') {
+        html += campo('motivo_nao_calibracao_psv', 'Motivo da não calibração (PSV)', 'textarea', {placeholder: 'Ex: PSV sem certificado disponível, substituição pendente…'});
+      }
+      html += toggle('valvula_adequada', 'A PSV é adequada ao equipamento?', ['Sim','Não','Não foi possível avaliar']);
+
+      if (psvAdq === 'Não') {
+        html += campo('motivo_valvula_inadequada', 'Motivo da inadequação', 'textarea', {placeholder: 'Descreva por que a PSV não é adequada.'});
+      } else if (psvAdq === 'Não foi possível avaliar') {
+        html += campo('motivo_nao_avaliacao_valvula', 'Motivo da não avaliação', 'textarea', {placeholder: 'Ex: acesso bloqueado, placa ilegível…'});
+      }
+    } else if (temPSV === 'Não' || temPSV === 'N/A') {
+      html += campo('obs_valvula', 'Observação sobre válvula de segurança', 'textarea', {placeholder: 'Justifique a ausência ou inaplicabilidade.'});
+    }
+
+    html += `<p class="sec-label">Outros Dispositivos</p>
+      ${toggle('possui_purgador', 'Possui purgador?', ['Sim','Não','N/A'])}
+      ${toggle('possui_dcbi', 'Possui DCBI?', ['Sim','Não','N/A'])}
+      ${toggle('possui_valvula_retencao', 'Possui válvula de retenção?', ['Sim','Não','N/A'])}
+      ${t === 'caldeira' ? toggle('possui_indicador_nivel', 'Possui Indicador de Nível?', ['Sim','Não']) : ''}
+      ${t === 'caldeira' ? toggle('possui_pressostato', 'Possui pressostato de segurança?', ['Sim','Não']) : ''}`;
+
+    if (temMan === 'Sim') {
+      fotosDisp.push('foto_manometro');
+      const manCalib = SES.dados.manometro_calibrado || '';
+      if (manCalib === 'Sim') fotosDisp.push('foto_cert_man');
+    }
+    if (temPSV === 'Sim') {
+      fotosDisp.push('foto_psv');
+      const psvCalib = SES.dados.valvula_calibrada || '';
+      if (psvCalib === 'Sim') fotosDisp.push('foto_cert_psv');
+    }
   }
 
   const temAterr = SES.dados.possui_aterramento || '';
-  html += `<p class="sec-label">Outros Dispositivos</p>
-    ${toggle('possui_purgador', 'Possui purgador?', ['Sim','Não','N/A'])}
-    ${toggle('possui_dcbi', 'Possui DCBI?', ['Sim','Não','N/A'])}
-    ${toggle('possui_valvula_retencao', 'Possui válvula de retenção?', ['Sim','Não','N/A'])}
-    ${(t === 'caldeira' || t === 'tanque') ? toggle('possui_indicador_nivel', 'Possui Indicador de Nível?', ['Sim','Não']) : ''}
-    ${t === 'caldeira' ? toggle('possui_pressostato', 'Possui pressostato de segurança?', ['Sim','Não']) : ''}
-    <p class="sec-label">Aterramento</p>
+  html += `<p class="sec-label">Aterramento</p>
     ${toggle('possui_aterramento', 'Possui aterramento elétrico?', ['Sim','Não','N/A'])}`;
-
-  const fotosDisp = [];
   if (temAterr === 'Sim' || temAterr === 'Não') {
     fotosDisp.push('foto_aterramento');
   }
-  if (temMan === 'Sim') {
-    fotosDisp.push('foto_manometro');
-    const manCalib = SES.dados.manometro_calibrado || '';
-    if (manCalib === 'Sim') fotosDisp.push('foto_cert_man');
-  }
-  if (temPSV === 'Sim') {
-    fotosDisp.push('foto_psv');
-    const psvCalib = SES.dados.valvula_calibrada || '';
-    if (psvCalib === 'Sim') fotosDisp.push('foto_cert_psv');
-  }
+
   const fotosDefs = fotosDisp.length > 0
     ? fotosDisp.map(k => ({ key: k, defaultLabel: LEGENDAS_TECNICAS[k] || k }))
     : getFotosSecao('disp', t);
@@ -2171,9 +2222,9 @@ ${t === 'vaso' ? `<div class="info-box" style="font-size:12px">⚠️ Exclusão 
 function getFotosSecao(secaoId, tipo) {
   const mapa = {
     ident:    ['foto_placa','foto_tag','foto_geral_equip'],
-    projeto:  ['foto_folha_dados_pmta'],
+    projeto:  tipo === 'tanque' ? ['foto_folha_dados_tanque'] : ['foto_folha_dados_pmta'],
     dimensoes:['foto_medicao','foto_corpo','foto_conexoes'],
-    disp:     ['foto_psv','foto_manometro','foto_cert_psv','foto_cert_man'],
+    disp:     tipo === 'tanque' ? [] : ['foto_psv','foto_manometro','foto_cert_psv','foto_cert_man'],
     docs:     ['foto_prontuario','foto_registro_seg','foto_rel_anterior','foto_cert_psv_doc'],
     servico:  ['foto_ambiente','foto_acesso','foto_risco'],
   };
@@ -2478,28 +2529,35 @@ function renderT6() {
   } else {
     // Revisão completa NR13
     const checkedDocs = Object.entries(d._checks || {}).filter(([,v])=>v).map(([k])=>k.replace(/doc_/,'').replace(/_/g,' ')).join(', ');
+    const isTanque = d.tipo === 'tanque';
     document.getElementById('t6-body').innerHTML = `
       <div class="rev-card">
         <div class="rev-head"><span class="rev-head-tag">${esc(d.tag || '—')}</span><span class="rev-head-tipo">${esc(labelTipo(d.tipo))}</span></div>
         ${rv('Fabricante', d.fabricante)}
         ${rv('Nº Equipamento', d.numero_equip)}
         ${rv('Ano Fabricação', d.ano_fabricacao)}
-        ${rv('Categoria', d.categoria)}
+        ${!isTanque ? rv('Categoria', d.categoria) : ''}
         ${rv('Código de Projeto', d.codigo_projeto)}
         ${rv('Localização', d.localizacao)}
         ${rv('Placa Indelével', d.placa_indelevel)}
-        ${rv('PMTA (kgf/cm²)', d.pmta)}
-        ${rv('Pressão Trabalho', d.pressao_trabalho)}
+        ${!isTanque ? rv('PMTA (kgf/cm²)', d.pmta) : ''}
+        ${!isTanque ? rv('Pressão Trabalho', d.pressao_trabalho) : ''}
         ${rv('Fluido', d.fluido || d.fluido_outro)}
         ${rv('Classe Fluido', d.classe_fluido)}
-        ${rv('Pressão Teste Hidrostático', d.pressao_teste)}
+        ${!isTanque ? rv('Pressão Teste Hidrostático', d.pressao_teste) : ''}
+        ${isTanque ? rv('Temperatura de Operação', d.temperatura) : ''}
         ${d.volume ? rv('Volume', d.volume + (SES.tipoEquip==='tanque'?' m³':' litros')) : ''}
-        ${rv('Manômetro', d.possui_manometro)}
-        ${rv('Manômetro calibrado', d.manometro_calibrado)}
-        ${rv('PSV', d.possui_valvula)}
-        ${rv('PSV Calibrada?', d.valvula_calibrada)}
-        ${rv('Purgador', d.possui_purgador)}
-        ${rv('DCBI', d.possui_dcbi)}
+        ${!isTanque ? rv('Manômetro', d.possui_manometro) : ''}
+        ${!isTanque ? rv('Manômetro calibrado', d.manometro_calibrado) : ''}
+        ${!isTanque ? rv('PSV', d.possui_valvula) : ''}
+        ${!isTanque ? rv('PSV Calibrada?', d.valvula_calibrada) : ''}
+        ${!isTanque ? rv('Purgador', d.possui_purgador) : ''}
+        ${!isTanque ? rv('DCBI', d.possui_dcbi) : ''}
+        ${isTanque ? rv('Dispositivo Sobrepressão', d.possui_dispositivo_sobrepressao) : ''}
+        ${isTanque ? rv('Dispositivo Vácuo', d.possui_dispositivo_vacuo) : ''}
+        ${isTanque ? rv('Válvula Corta-Chamas', d.possui_valvula_corta_chamas) : ''}
+        ${isTanque ? rv('Indicador de Nível', d.possui_indicador_nivel) : ''}
+        ${isTanque ? rv('Plano de Manutenção dos Dispositivos', d.existe_plano_manutencao_dispositivos) : ''}
         ${rv('Documentos presentes', checkedDocs || '—')}
         ${rv('Requer Trabalho em Altura?', d.trabalho_altura)}
         ${rv('Necessita Teste Hidrostático?', d.necessita_th)}
@@ -3081,7 +3139,7 @@ async function gerarPDFEquips(indices, completo) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(180, 210, 240);
-    doc.text('ColectTap v2.19  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
+    doc.text('ColectTap v2.20  |  Gerado em: ' + dataHoje + ' ' + horaHoje, PW/2, 140, {align:'center'});
 
     // ── Foto da capa (se disponível) ──
     if (eq && eq.foto_capa_key && eq._fotos) {
@@ -3738,6 +3796,11 @@ const LEGENDAS_TECNICAS = {
   foto_cert_psv_doc:'Foto do Certificado de Calibração da PSV',
   foto_prontuario:  'Foto do Prontuário / Folha de Dados',
   foto_folha_dados_pmta: 'Foto da Folha de Dados (PMTA, volume, material)',
+  foto_folha_dados_tanque:        'Foto da Folha de Dados do Tanque (volume, fluido, material)',
+  foto_dispositivo_sobrepressao:  'Foto do Dispositivo Contra Sobrepressão',
+  foto_dispositivo_vacuo:         'Foto do Dispositivo Contra Vácuo',
+  foto_valvula_corta_chamas:      'Foto da Válvula Corta-Chamas',
+  foto_cert_dispositivos_seguranca: 'Foto do Certificado dos Dispositivos de Sobrepressão/Vácuo',
   foto_registro_seg:'Foto do Registro de Segurança',
   foto_rel_anterior:'Foto do Relatório de Inspeção Anterior',
   foto_folha_dados: 'Foto do Prontuário / Folha de Dados',
